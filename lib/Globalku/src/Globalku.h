@@ -1,0 +1,455 @@
+const char *baseWebHtml = R"rawliteral(
+  <!DOCTYPE html>
+  <html>
+
+  <head>
+      <title>ESP32 Configuration</title>
+      <style>
+          body {
+              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+              margin: 0;
+              padding: 0;
+              background-color: #f5f5f5;
+              color: #333;
+          }
+
+          h1,
+          h2 {
+              text-align: center;
+              color: #4CAF50;
+          }
+
+          form {
+              max-width: 600px;
+              margin: 20px auto;
+              padding: 20px;
+              background-color: #fff;
+              box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+              border-radius: 8px;
+          }
+
+          label {
+              display: block;
+              margin-bottom: 5px;
+              font-weight: bold;
+          }
+
+          .modbus_container {
+              display: flex;
+              gap: 10px;
+          }
+
+          input,
+          select,
+          button {
+              width: 100%;
+              padding: 10px;
+              margin-bottom: 15px;
+              border: 1px solid #ddd;
+              border-radius: 4px;
+              box-sizing: border-box;
+              font-size: 16px;
+          }
+
+          input:focus,
+          select:focus {
+              border-color: #4CAF50;
+              outline: none;
+              box-shadow: 0 0 4px rgba(76, 175, 80, 0.5);
+          }
+
+          button {
+              background-color: #4CAF50;
+              color: #fff;
+              font-size: 18px;
+              cursor: pointer;
+              transition: background-color 0.3s ease;
+          }
+
+          button:hover {
+              background-color: #45a049;
+          }
+
+          .hidden {
+              display: none;
+          }
+
+          .ip-group {
+              display: flex;
+              gap: 10px;
+          }
+
+          .komparasi-entry {
+              /* color: #45a049; */
+              display: flex;
+              gap: 10px;
+          }
+
+          .komparasi {
+              width: 30%;
+          }
+
+          .ip-group input {
+              flex: 1;
+              text-align: center;
+          }
+
+          .modbus-entry {
+              display: flex;
+              gap: 10px;
+              margin-bottom: 10px;
+          }
+
+          .modbus-entry input,
+          .modbus-entry select {
+              flex: 1;
+          }
+
+          @media (max-width: 768px) {
+              form {
+                  padding: 15px;
+              }
+
+              .ip-group {
+                  flex-wrap: wrap;
+              }
+
+              .ip-group input {
+                  width: calc(50% - 10px);
+                  margin-bottom: 10px;
+              }
+          }
+
+          @media (max-width: 480px) {
+              .ip-group input {
+                  width: 100%;
+              }
+
+              button {
+                  font-size: 16px;
+                  padding: 12px;
+              }
+
+              .modbus-entry {
+                  flex-direction: column;
+              }
+          }
+      </style>
+  </head>
+
+  <body>
+      <h1>ESP32 Configuration</h1>
+      <form action="/saveConfig" method="POST">
+          <h2>Wi-Fi Settings</h2>
+          <label for="ssid">SSID (required):</label>
+          <input type="text" id="ssid" name="ssid" placeholder="Enter your Wi-Fi SSID" required>
+          <label for="password">Password (required):</label>
+          <input type="password" id="password" name="password" placeholder="Enter your Wi-Fi password" required>
+          <label for="ip_localMikon">IPAddress (required):</label>
+          <div class="ip-group">
+              <input type="number" id="ip_local1" name="ip_local1" min="0" max="255" placeholder="192" required>
+              <input type="number" id="ip_local2" name="ip_local2" min="0" max="255" placeholder="168" required>
+              <input type="number" id="ip_local3" name="ip_local3" min="0" max="255" placeholder="0" required>
+              <input type="number" id="ip_local4" name="ip_local4" min="0" max="255" placeholder="2" required>
+          </div>
+          <label for="ip_gatwayMikon">IPAddress Gateway (required):</label>
+          <div class="ip-group">
+              <input type="number" id="ip_gateway1" name="ip_gateway1" min="0" max="255" placeholder="192" required>
+              <input type="number" id="ip_gateway2" name="ip_gateway2" min="0" max="255" placeholder="168" required>
+              <input type="number" id="ip_gateway3" name="ip_gateway3" min="0" max="255" placeholder="0" required>
+              <input type="number" id="ip_gateway4" name="ip_gateway4" min="0" max="255" placeholder="1" required>
+          </div>
+          <label for="netmask_mikon">Netmask (required):</label>
+          <div class="ip-group">
+              <input type="number" id="netmask1" name="netmask1" min="0" max="255" placeholder="255" required>
+              <input type="number" id="netmask2" name="netmask2" min="0" max="255" placeholder="255" required>
+              <input type="number" id="netmask3" name="netmask3" min="0" max="255" placeholder="255" required>
+              <input type="number" id="netmask4" name="netmask4" min="0" max="255" placeholder="0" required>
+          </div>
+          <label for="primary_DNS">Primary DNS (required):</label>
+          <div class="ip-group">
+              <input type="number" id="primDNS1" name="primDNS1" min="0" max="255" placeholder="8" required>
+              <input type="number" id="primDNS2" name="primDNS2" min="0" max="255" placeholder="8" required>
+              <input type="number" id="primDNS3" name="primDNS3" min="0" max="255" placeholder="8" required>
+              <input type="number" id="primDNS4" name="primDNS4" min="0" max="255" placeholder="8" required>
+          </div>
+
+          <h2>MQTT Configuration</h2>
+          <label for="mqtt_server">MQTT Broker IP/URL (required):</label>
+          <input type="text" id="mqtt_server" name="mqtt_server" placeholder="Enter host MQTT server" required>
+          <label for="mqtt_port">MQTT Port (required):</label>
+          <input type="number" id="mqtt_port" name="mqtt_port" placeholder="Enter port MQTT server" required>
+          <label for="mqtt_username">MQTT Username (optional):</label>
+          <input type="text" id="mqtt_username" name="mqtt_username" placeholder="Enter your username MQTT Client">
+          <label for="mqtt_password">MQTT Password (optional):</label>
+          <input type="password" id="mqtt_password" name="mqtt_password" placeholder="Enter your password MQTT client">
+          <label for="topic_publish">MQTT Topic Publish:</label>
+          <input type="text" id="topic_publish" name="topic_publish" placeholder="Enter topic for publish">
+
+          <!-- modbus config -->
+          <h2>Modbus Configuration</h2>
+          <div class="modbus_container">
+
+              <!-- modbus slave 1 -->
+              <div class="modbus_slave1">
+                  <label for="slave_id">Slave ID 1:</label>
+                  <input type="number" id="slave_id" name="slave_id" placeholder="Enter slave id modbus">
+                  <label for="modbus_type">Protocol Type:</label>
+                  <select id="modbus_type" name="modbus_type" onchange="toggleModbusSettings()">
+                      <option value="RTU">RTU</option>
+                      <!-- <option value="TCP">TCP</option> -->
+                  </select>
+                  <div id="modbusRTU">
+                      <label for="baud_rate">Baud Rate:</label>
+                      <select id="baud_rate" name="baud_rate">
+                          <option value="9600">9600</option>
+                          <option value="19200">19200</option>
+                          <option value="115200">115200</option>
+                      </select>
+                      <label for="data_bits">Data Bits:</label>
+                      <select id="data_bits" name="data_bits">
+                          <option value="8">8</option>
+                          <option value="7">7</option>
+                      </select>
+                      <label for="stop_bits">Stop Bits:</label>
+                      <select id="stop_bits" name="stop_bits">
+                          <option value="1">1</option>
+                          <option value="2">2</option>
+                      </select>
+                      <label for="modbus_parity">Parity:</label>
+                      <select id="modbus_parity" name="modbus_parity">
+                          <option value="none">None</option>
+                          <option value="even">Even</option>
+                          <option value="odd">Odd</option>
+                      </select>
+                  </div>
+                  <div id="modbusTCP">
+                      <label for="host_tcp">Modbus IPAddress:</label>
+                      <div class="ip-group">
+                          <input type="number" id="host_tcp1" name="host_tcp1" min="0" max="255">
+                          <input type="number" id="host_tcp2" name="host_tcp2" min="0" max="255">
+                          <input type="number" id="host_tcp3" name="host_tcp3" min="0" max="255">
+                          <input type="number" id="host_tcp4" name="host_tcp4" min="0" max="255">
+                      </div>
+                      <label for="modbus_port">Modbus Port:</label>
+                      <input type="number" id="modbus_port" name="modbus_port">
+                  </div>
+      
+                  <label>Modbus Addresses</label>
+                  <div id="modbusAddressContainer">
+                      <div class="modbus-entry">
+                          <input type="number" name="modbus_address0" placeholder="Modbus Address">
+                          <select name="type_data0">
+                              <option value="UINT16">UINT16</option>
+                              <option value="INT16">INT16</option>
+                              <option value="UINT32">UINT32</option>
+                              <option value="INT32">INT32</option>
+                              <option value="FLOAT32">FLOAT32</option>
+                          </select>
+                      </div>
+                      <div class="modbus-entry">
+                          <input type="number" name="modbus_address1" placeholder="Modbus Address">
+                          <select name="type_data1">
+                              <option value="UINT16">UINT16</option>
+                              <option value="INT16">INT16</option>
+                              <option value="UINT32">UINT32</option>
+                              <option value="INT32">INT32</option>
+                              <option value="FLOAT32">FLOAT32</option>
+                          </select>
+                      </div>
+                      <div class="modbus-entry">
+                          <input type="number" name="modbus_address2" placeholder="Modbus Address">
+                          <select name="type_data2">
+                              <option value="UINT16">UINT16</option>
+                              <option value="INT16">INT16</option>
+                              <option value="UINT32">UINT32</option>
+                              <option value="INT32">INT32</option>
+                              <option value="FLOAT32">FLOAT32</option>
+                          </select>
+                      </div>
+                      <div class="modbus-entry">
+                          <input type="number" name="modbus_address3" placeholder="Modbus Address">
+                          <select name="type_data3">
+                              <option value="UINT16">UINT16</option>
+                              <option value="INT16">INT16</option>
+                              <option value="UINT32">UINT32</option>
+                              <option value="INT32">INT32</option>
+                              <option value="FLOAT32">FLOAT32</option>
+                          </select>
+                      </div>
+                  </div>
+              </div>
+
+              <!-- modbus slave2 -->
+              <div class="modbus_slave2">
+                  <label for="slave_id1">Slave ID 2:</label>
+                  <input type="number" id="slave_id_sensor" name="slave_id_sensor" placeholder="Enter slave id modbus">
+                  <label for="modbus_type">Protocol Type:</label>
+                  <select id="modbus_type1" name="modbus_type1" onchange="toggleModbusSettings()">
+                      <option value="RTU">RTU</option>
+                      <!-- <option value="TCP">TCP</option> -->
+                  </select>
+                  <div id="modbusRTU">
+                      <label for="baud_rate">Baud Rate:</label>
+                      <select id="baud_rate1" name="baud_rate1">
+                          <option value="9600">9600</option>
+                          <option value="19200">19200</option>
+                          <option value="115200">115200</option>
+                      </select>
+                      <label for="data_bits">Data Bits:</label>
+                      <select id="data_bits1" name="data_bits1">
+                          <option value="8">8</option>
+                          <option value="7">7</option>
+                      </select>
+                      <label for="stop_bits">Stop Bits:</label>
+                      <select id="stop_bits1" name="stop_bits1">
+                          <option value="1">1</option>
+                          <option value="2">2</option>
+                      </select>
+                      <label for="modbus_parity">Parity:</label>
+                      <select id="modbus_parity1" name="modbus_parity1">
+                          <option value="none">None</option>
+                          <option value="even">Even</option>
+                          <option value="odd">Odd</option>
+                      </select>
+                  </div>
+      
+                  <label>Modbus Addresses</label>
+                  <div id="modbusAddressContainer">
+                      <div class="modbus-entry">
+                          <input type="number" name="modbus_address01" placeholder="Modbus Address">
+                          <select name="type_data01">
+                              <option value="UINT16">UINT16</option>
+                              <option value="INT16">INT16</option>
+                              <option value="UINT32">UINT32</option>
+                              <option value="INT32">INT32</option>
+                              <option value="FLOAT32">FLOAT32</option>
+                          </select>
+                      </div>
+                      <div class="modbus-entry">
+                          <input type="number" name="modbus_address11" placeholder="Modbus Address">
+                          <select name="type_data11">
+                              <option value="UINT16">UINT16</option>
+                              <option value="INT16">INT16</option>
+                              <option value="UINT32">UINT32</option>
+                              <option value="INT32">INT32</option>
+                              <option value="FLOAT32">FLOAT32</option>
+                          </select>
+                      </div>
+                      <div class="modbus-entry">
+                          <input type="number" name="modbus_address21" placeholder="Modbus Address">
+                          <select name="type_data21">
+                              <option value="UINT16">UINT16</option>
+                              <option value="INT16">INT16</option>
+                              <option value="UINT32">UINT32</option>
+                              <option value="INT32">INT32</option>
+                              <option value="FLOAT32">FLOAT32</option>
+                          </select>
+                      </div>
+                      <div class="modbus-entry">
+                          <input type="number" name="modbus_address31" placeholder="Modbus Address">
+                          <select name="type_data31">
+                              <option value="UINT16">UINT16</option>
+                              <option value="INT16">INT16</option>
+                              <option value="UINT32">UINT32</option>
+                              <option value="INT32">INT32</option>
+                              <option value="FLOAT32">FLOAT32</option>
+                          </select>
+                      </div>
+                  </div>
+              </div>
+          </div>
+
+          <!-- komparasi nilai suhu -->
+          <h2>Komparasi Nilai Suhu</h2>
+          <div id="komparasiContainer">
+              <div class="komparasi-entry">
+                  <label for="">Nilai Sensor</label>
+                  <select name="komSuhu" id="komSuhu" class="komparasi">
+                      <option value=">">&gt;</option>
+                      <option value="<">&lt;</option>
+                      <option value=">=">&gE;</option>
+                      <option value="<=">&lE;</option>
+                  </select>
+                  <input type="number" id="Suhu" name="Suhu" placeholder="Enter min temperature">
+              </div>
+          </div>
+          <h2>Komparasi Nilai Humidity</h2>
+          <div id="komparasiContainer">
+              <div class="komparasi-entry">
+                  <label for="">Nilai Sensor</label>
+                  <select name="komHum" id="komHum" class="komparasi">
+                      <option value=">">&gt;</option>
+                      <option value="<">&lt;</option>
+                      <option value=">=">&gE;</option>
+                      <option value="<=">&lE;</option>
+                  </select>
+                  <input type="number" id="Hum" name="Hum" placeholder="Enter min humidity">
+              </div>
+          </div>
+          <h2>Komparasi Nilai Lux</h2>
+          <div id="komparasiContainer">
+              <div class="komparasi-entry">
+                  <label for="">Nilai Sensor</label>
+                  <select name="komLux" id="komLux" class="komparasi">
+                      <option value=">">&gt;</option>
+                      <option value="<">&lt;</option>
+                      <option value=">=">&gE;</option>
+                      <option value="<=">&lE;</option>
+                  </select>
+                  <input type="number" id="Lux" name="Lux" placeholder="Enter min lux">
+              </div>
+          </div>
+          <!-- <button type="button" onclick="addModbusAddress()">➕ Add Address</button>  -->
+          <button type="submit">Save Configuration</button>
+      </form>
+
+      <script>
+          // Toggle Modbus RTU settings visibility based on protocol type
+          function toggleModbusSettings() {
+              const modbusType = document.getElementById('modbus_type').value;
+              const modbusRTU = document.getElementById('modbusRTU');
+              modbusRTU.style.display = modbusType === 'RTU' ? 'block' : 'none';
+              const modbusTCP = document.getElementById('modbusTCP');
+              modbusTCP.style.display = modbusType === 'TCP' ? 'block' : 'none';
+          }
+          function addModbusAddress() {
+              const container = document.getElementById("modbusAddressContainer");
+
+              // Create wrapper div for alignment
+              const entryDiv = document.createElement("div");
+              entryDiv.classList.add("modbus-entry");
+
+              // Create input for Modbus Address
+              const input = document.createElement("input");
+              input.type = "number";
+              input.name = "modbus_address[]";
+              input.placeholder = "Modbus Address";
+              input.required = true;
+              
+              // Create select dropdown for Type Data
+              const select = document.createElement("select");
+              select.name = "modbus_typedata[]";
+              select.innerHTML = `
+                  <option value="1">UINT16</option>
+                  <option value="2">INT16</option>
+                  <option value="3">UINT32</option>
+                  <option value="4">INT32</option>
+                  <option value="5">FLOAT32</option>
+              `;
+
+              // Append input and select to the wrapper div
+              entryDiv.appendChild(input);
+              entryDiv.appendChild(select);
+
+              // Append to container
+              container.appendChild(entryDiv);
+          }
+
+          // Set default visibility
+          toggleModbusSettings();
+      </script>
+  </body>
+
+  </html>
+)rawliteral";

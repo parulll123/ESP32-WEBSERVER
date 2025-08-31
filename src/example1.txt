@@ -1,0 +1,182 @@
+#include <Arduino.h>
+#include "Globalku.h"
+#include <WiFi.h>
+#include <ESPAsyncWebServer.h>
+#include <Preferences.h>
+#include <PubSubClient.h> // MQTT Library
+
+// Wi-Fi Access Point credentials
+const char *ap_ssid = "ESP32_Config";
+const char *ap_password = "12345678";
+
+// MQTT Settings (placeholders, will be updated from web form)
+String mqtt_server = "";
+int mqtt_port = 1883;
+String mqtt_username = "";
+String mqtt_password = "";
+
+// Create AsyncWebServer object on port 80
+AsyncWebServer server(80);
+WiFiClient wifiClient;
+PubSubClient mqttClient(wifiClient);
+Preferences preferences;
+
+void connectToMQTT();
+
+void setup()
+{
+  // Initialize Serial Monitor
+  Serial.begin(9600);
+
+  // Start Wi-Fi as Access Point
+  WiFi.softAP(ap_ssid, ap_password);
+  Serial.println("Access Point started!");
+  Serial.print("AP IP Address: ");
+  Serial.println(WiFi.softAPIP());
+
+  // Serve configuration form
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+            { request->send(200, "text/html", R"rawliteral(
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>ESP32 Configuration</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          form { max-width: 400px; margin: auto; }
+          label { display: block; margin-bottom: 5px; }
+          input { width: 100%; padding: 8px; margin-bottom: 15px; }
+          button { background-color: #4CAF50; color: white; border: none; padding: 10px; width: 100%; }
+        </style>
+      </head>
+      <body>
+        <h1>ESP32 Configuration</h1>
+        <form action="/saveConfig" method="POST">
+          <h2>Wi-Fi Settings</h2>
+          <label for="ssid">SSID:</label>
+          <input type="text" id="ssid" name="ssid" required>
+          <label for="password">Password:</label>
+          <input type="password" id="password" name="password" required>
+
+          <h2>Network Settings</h2>
+          <label for="ip">Static IP (optional):</label>
+          <input type="text" id="ip" name="ip">
+          <label for="subnet">Subnet Mask (optional):</label>
+          <input type="text" id="subnet" name="subnet">
+          <label for="gateway">Gateway (optional):</label>
+          <input type="text" id="gateway" name="gateway">
+
+          <h2>Device Configuration</h2>
+          <label for="device_name">Device Name:</label>
+          <input type="text" id="device_name" name="device_name">
+
+          <h2>MQTT Configuration</h2>
+          <label for="mqtt_server">MQTT Broker IP/URL:</label>
+          <input type="text" id="mqtt_server" name="mqtt_server" required>
+          <label for="mqtt_port">MQTT Port:</label>
+          <input type="text" id="mqtt_port" name="mqtt_port" value="1883" required>
+          <label for="mqtt_username">MQTT Username (optional):</label>
+          <input type="text" id="mqtt_username" name="mqtt_username">
+          <label for="mqtt_password">MQTT Password (optional):</label>
+          <input type="password" id="mqtt_password" name="mqtt_password">
+
+          <button type="submit">Save Configuration</button>
+        </form>
+      </body>
+      </html>
+    )rawliteral"); });
+
+  // Handle form submission
+  server.on("/saveConfig", HTTP_POST, [](AsyncWebServerRequest *request)
+            {
+    String ssid = request->getParam("ssid", true)->value();
+    String password = request->getParam("password", true)->value();
+    String ip = request->hasParam("ip", true) ? request->getParam("ip", true)->value() : "";
+    String subnet = request->hasParam("subnet", true) ? request->getParam("subnet", true)->value() : "";
+    String gateway = request->hasParam("gateway", true) ? request->getParam("gateway", true)->value() : "";
+    String device_name = request->hasParam("device_name", true) ? request->getParam("device_name", true)->value() : "";
+    mqtt_server = request->getParam("mqtt_server", true)->value();
+    mqtt_port = request->hasParam("mqtt_port", true) ? request->getParam("mqtt_port", true)->value().toInt() : 1883;
+    mqtt_username = request->hasParam("mqtt_username", true) ? request->getParam("mqtt_username", true)->value() : "";
+    mqtt_password = request->hasParam("mqtt_password", true) ? request->getParam("mqtt_password", true)->value() : "";
+
+    // Print received data to Serial Monitor
+    Serial.println("Configuration Received:");
+    Serial.println("SSID: " + ssid);
+    Serial.println("Password: " + password);
+    Serial.println("IP: " + ip);
+    Serial.println("Subnet: " + subnet);
+    Serial.println("Gateway: " + gateway);
+    Serial.println("Device Name: " + device_name);
+    Serial.println("MQTT Server: " + mqtt_server);
+    Serial.println("MQTT Port: " + String(mqtt_port));
+    Serial.println("MQTT Username: " + mqtt_username);
+    Serial.println("MQTT Password: " + mqtt_password);
+
+    // Save configuration to Preferences
+    preferences.begin("WiFiCreds", false);
+    preferences.putString("ssid", ssid);
+    preferences.putString("password", password);
+    preferences.putString("ip", ip);
+    preferences.putString("subnet", subnet);
+    preferences.putString("gateway", gateway);
+    preferences.putString("device_name", device_name);
+    preferences.putString("mqtt_server", mqtt_server);
+    preferences.putInt("mqtt_port", mqtt_port);
+    preferences.putString("mqtt_username", mqtt_username);
+    preferences.putString("mqtt_password", mqtt_password);
+    preferences.end();
+
+    // Respond to client
+    request->send(200, "text/html", "Configuration Saved! ESP32 will restart to apply changes.");
+
+    // Restart ESP32 to apply configuration (optional)
+    delay(3000);
+    ESP.restart(); });
+
+  // Start the server
+  server.begin();
+
+  // Initialize MQTT client with saved configuration
+  preferences.begin("WiFiCreds", true);
+  mqtt_server = preferences.getString("mqtt_server", "");
+  mqtt_port = preferences.getInt("mqtt_port", 1883);
+  mqtt_username = preferences.getString("mqtt_username", "");
+  mqtt_password = preferences.getString("mqtt_password", "");
+  preferences.end();
+
+  mqttClient.setServer(mqtt_server.c_str(), mqtt_port);
+
+  // Try to connect to MQTT broker
+  connectToMQTT();
+}
+
+void connectToMQTT()
+{
+  while (!mqttClient.connected())
+  {
+    Serial.print("Connecting to MQTT...");
+
+    // Generate client ID
+    String clientId = "ESP32-" + String(random(0xffff), HEX);
+
+    // Try to connect
+    if (mqttClient.connect(clientId.c_str(), mqtt_username.c_str(), mqtt_password.c_str()))
+    {
+      Serial.println("Connected to MQTT!");
+    }
+    else
+    {
+      Serial.print("Failed, rc=");
+      Serial.print(mqttClient.state());
+      Serial.println(" retrying in 5 seconds");
+      delay(5000);
+    }
+  }
+}
+
+void loop()
+{
+  // Keep MQTT connection alive
+  mqttClient.loop();
+}

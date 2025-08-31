@@ -1,0 +1,2 @@
+MODBUS SENSOR 8 N 1, 4800 slave id = 2
+MODBUS RELAY 8 N 1, 9600 slave id = 1

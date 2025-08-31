@@ -1,0 +1,181 @@
+#include <WiFi.h>
+#include <ESPAsyncWebServer.h>
+#include <Preferences.h>
+#include <PubSubClient.h>  // MQTT Library
+#include <ModbusRTU.h>     // Modbus RTU Library
+#include <ModbusTCP.h>     // Modbus TCP Library
+
+// Wi-Fi Access Point credentials
+const char* ap_ssid = "ESP32_Config";
+const char* ap_password = "12345678";
+
+// MQTT Settings
+String mqtt_server = "";
+int mqtt_port = 1883;
+String mqtt_username = "";
+String mqtt_password = "";
+
+// Modbus Settings
+String modbus_type = "RTU";  // RTU or TCP
+int modbus_slave_id = 1;     // Default Slave ID
+int modbus_baud_rate = 9600;
+int modbus_data_bits = 8;
+int modbus_stop_bits = 1;
+String modbus_parity = "none"; // "none", "even", "odd"
+
+// Create AsyncWebServer object on port 80
+AsyncWebServer server(80);
+WiFiClient wifiClient;
+PubSubClient mqttClient(wifiClient);
+Preferences preferences;
+
+// Modbus Objects
+ModbusRTU modbusRTU;
+WiFiServer modbusTCPServer(502); // Default Modbus TCP port
+ModbusTCPClient modbusTCP;
+
+void setup() {
+  // Initialize Serial Monitor
+  Serial.begin(115200);
+
+  // Start Wi-Fi as Access Point
+  WiFi.softAP(ap_ssid, ap_password);
+  Serial.println("Access Point started!");
+  Serial.print("AP IP Address: ");
+  Serial.println(WiFi.softAPIP());
+
+  // Serve configuration form
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(200, "text/html", R"rawliteral(
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>ESP32 Configuration</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          form { max-width: 400px; margin: auto; }
+          label { display: block; margin-bottom: 5px; }
+          input, select { width: 100%; padding: 8px; margin-bottom: 15px; }
+          button { background-color: #4CAF50; color: white; border: none; padding: 10px; width: 100%; }
+        </style>
+      </head>
+      <body>
+        <h1>ESP32 Configuration</h1>
+        <form action="/saveConfig" method="POST">
+          <h2>Wi-Fi Settings</h2>
+          <label for="ssid">SSID:</label>
+          <input type="text" id="ssid" name="ssid" required>
+          <label for="password">Password:</label>
+          <input type="password" id="password" name="password" required>
+
+          <h2>MQTT Configuration</h2>
+          <label for="mqtt_server">MQTT Broker IP/URL:</label>
+          <input type="text" id="mqtt_server" name="mqtt_server" required>
+          <label for="mqtt_port">MQTT Port:</label>
+          <input type="text" id="mqtt_port" name="mqtt_port" value="1883" required>
+          <label for="mqtt_username">MQTT Username:</label>
+          <input type="text" id="mqtt_username" name="mqtt_username">
+          <label for="mqtt_password">MQTT Password:</label>
+          <input type="password" id="mqtt_password" name="mqtt_password">
+
+          <h2>Modbus Configuration</h2>
+          <label for="modbus_type">Protocol Type:</label>
+          <select id="modbus_type" name="modbus_type">
+            <option value="RTU">RTU</option>
+            <option value="TCP">TCP</option>
+          </select>
+          <label for="modbus_slave_id">Slave ID:</label>
+          <input type="text" id="modbus_slave_id" name="modbus_slave_id" value="1">
+          <label for="modbus_baud_rate">Baud Rate:</label>
+          <input type="text" id="modbus_baud_rate" name="modbus_baud_rate" value="9600">
+          <label for="modbus_data_bits">Data Bits:</label>
+          <input type="text" id="modbus_data_bits" name="modbus_data_bits" value="8">
+          <label for="modbus_stop_bits">Stop Bits:</label>
+          <input type="text" id="modbus_stop_bits" name="modbus_stop_bits" value="1">
+          <label for="modbus_parity">Parity:</label>
+          <select id="modbus_parity" name="modbus_parity">
+            <option value="none">None</option>
+            <option value="even">Even</option>
+            <option value="odd">Odd</option>
+          </select>
+
+          <button type="submit">Save Configuration</button>
+        </form>
+      </body>
+      </html>
+    )rawliteral");
+  });
+
+  // Handle form submission
+  server.on("/saveConfig", HTTP_POST, [](AsyncWebServerRequest *request){
+    String ssid = request->getParam("ssid", true)->value();
+    String password = request->getParam("password", true)->value();
+    mqtt_server = request->getParam("mqtt_server", true)->value();
+    mqtt_port = request->getParam("mqtt_port", true)->value().toInt();
+    mqtt_username = request->getParam("mqtt_username", true)->value();
+    mqtt_password = request->getParam("mqtt_password", true)->value();
+    modbus_type = request->getParam("modbus_type", true)->value();
+    modbus_slave_id = request->getParam("modbus_slave_id", true)->value().toInt();
+    modbus_baud_rate = request->getParam("modbus_baud_rate", true)->value().toInt();
+    modbus_data_bits = request->getParam("modbus_data_bits", true)->value().toInt();
+    modbus_stop_bits = request->getParam("modbus_stop_bits", true)->value().toInt();
+    modbus_parity = request->getParam("modbus_parity", true)->value();
+
+    // Save configuration to Preferences
+    preferences.begin("Config", false);
+    preferences.putString("ssid", ssid);
+    preferences.putString("password", password);
+    preferences.putString("mqtt_server", mqtt_server);
+    preferences.putInt("mqtt_port", mqtt_port);
+    preferences.putString("mqtt_username", mqtt_username);
+    preferences.putString("mqtt_password", mqtt_password);
+    preferences.putString("modbus_type", modbus_type);
+    preferences.putInt("modbus_slave_id", modbus_slave_id);
+    preferences.putInt("modbus_baud_rate", modbus_baud_rate);
+    preferences.putInt("modbus_data_bits", modbus_data_bits);
+    preferences.putInt("modbus_stop_bits", modbus_stop_bits);
+    preferences.putString("modbus_parity", modbus_parity);
+    preferences.end();
+
+    // Respond to client
+    request->send(200, "text/html", "Configuration Saved! ESP32 will restart to apply changes.");
+
+    // Restart ESP32 to apply configuration (optional)
+    delay(3000);
+    ESP.restart();
+  });
+
+  // Start the server
+  server.begin();
+
+  // Read Modbus and MQTT configurations
+  preferences.begin("Config", true);
+  modbus_type = preferences.getString("modbus_type", "RTU");
+  modbus_slave_id = preferences.getInt("modbus_slave_id", 1);
+  modbus_baud_rate = preferences.getInt("modbus_baud_rate", 9600);
+  modbus_data_bits = preferences.getInt("modbus_data_bits", 8);
+  modbus_stop_bits = preferences.getInt("modbus_stop_bits", 1);
+  modbus_parity = preferences.getString("modbus_parity", "none");
+  preferences.end();
+
+  if (modbus_type == "RTU") {
+    Serial2.begin(modbus_baud_rate, modbusParity(modbus_parity), modbus_data_bits, modbus_stop_bits);
+    modbusRTU.begin(&Serial2, modbus_slave_id);
+  } else if (modbus_type == "TCP") {
+    modbusTCPServer.begin();
+  }
+}
+
+uint8_t modbusParity(String parity) {
+  if (parity == "even") return SERIAL_8E1;
+  if (parity == "odd") return SERIAL_8O1;
+  return SERIAL_8N1;
+}
+
+void loop() {
+  if (modbus_type == "RTU") {
+    modbusRTU.task();
+  } else if (modbus_type == "TCP") {
+    modbusTCP.poll();
+  }
+}
